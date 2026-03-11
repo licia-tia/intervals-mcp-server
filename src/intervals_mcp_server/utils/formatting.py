@@ -222,12 +222,16 @@ def _format_subjective_feelings(entries: dict[str, Any]) -> list[str]:
 def _format_nutrition_hydration(entries: dict[str, Any]) -> list[str]:
     """Format nutrition and hydration section."""
     nutrition_lines = []
-    for k, label in [
-        ("kcalConsumed", "Calories Consumed"),
-        ("hydrationVolume", "Hydration Volume"),
+    for k, label, unit in [
+        ("kcalConsumed", "Calories Consumed", None),
+        ("protein", "Protein", "g"),
+        ("carbohydrates", "Carbohydrates", "g"),
+        ("fatTotal", "Fat", "g"),
+        ("hydrationVolume", "Hydration Volume", None),
     ]:
         if entries.get(k) is not None:
-            nutrition_lines.append(f"- {label}: {entries[k]}")
+            suffix = f" {unit}" if unit else ""
+            nutrition_lines.append(f"- {label}: {entries[k]}{suffix}")
 
     if entries.get("hydration") is not None:
         nutrition_lines.append(f"  Hydration Score: {entries['hydration']}/10")
