@@ -32,6 +32,7 @@ from intervals_mcp_server.server import (  # pylint: disable=wrong-import-positi
     get_activity_streams,
     add_or_update_event,
 )
+from intervals_mcp_server.utils.types import WorkoutDoc  # pylint: disable=wrong-import-position
 from tests.sample_data import INTERVALS_DATA  # pylint: disable=wrong-import-position
 
 
@@ -254,3 +255,49 @@ def test_add_or_update_event(monkeypatch):
     assert "Successfully created event:" in result
     assert '"id": "e123"' in result
     assert '"name": "Test Workout"' in result
+
+
+def test_add_or_update_event_uses_rowing_and_workout_doc(monkeypatch):
+    """
+    Test rowing workouts are mapped to Rowing and structured workout_doc is sent to the API.
+    """
+    captured = {}
+
+    async def fake_post_request(*_args, **kwargs):
+        captured.update(kwargs)
+        return {
+            "id": "e124",
+            "start_date_local": "2024-01-15T00:00:00",
+            "category": "WORKOUT",
+            "name": "Row Session",
+            "type": "Rowing",
+        }
+
+    monkeypatch.setattr("intervals_mcp_server.api.client.make_intervals_request", fake_post_request)
+    monkeypatch.setattr(
+        "intervals_mcp_server.tools.events.make_intervals_request", fake_post_request
+    )
+
+    workout_doc = WorkoutDoc(
+        description="Easy row",
+        duration=1800,
+        target=None,
+        steps=[],
+    )
+
+    result = asyncio.run(
+        add_or_update_event(
+            athlete_id="i1",
+            start_date="2024-01-15",
+            name="Row Session",
+            workout_type="Row",
+            workout_doc=workout_doc,
+            moving_time=1800,
+        )
+    )
+
+    assert "Successfully created event:" in result
+    assert captured["data"]["type"] == "Rowing"
+    assert captured["data"]["description"] == "Easy row"
+    assert captured["data"]["workout_doc"]["description"] == "Easy row"
+    assert captured["data"]["workout_doc"]["duration"] == 1800

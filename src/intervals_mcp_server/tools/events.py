@@ -23,15 +23,18 @@ config = get_config()
 
 def _resolve_workout_type(name: str | None, workout_type: str | None) -> str:
     """Determine the workout type based on the name and provided value."""
+    aliases = {
+        "row": "Rowing",
+    }
     if workout_type:
-        return workout_type
+        return aliases.get(workout_type.lower(), workout_type)
     name_lower = name.lower() if name else ""
     mapping = [
         ("Ride", ["bike", "cycle", "cycling", "ride"]),
         ("Run", ["run", "running", "jog", "jogging"]),
         ("Swim", ["swim", "swimming", "pool"]),
         ("Walk", ["walk", "walking", "hike", "hiking"]),
-        ("Row", ["row", "rowing"]),
+        ("Rowing", ["row", "rowing"]),
     ]
     for workout, keywords in mapping:
         if any(keyword in name_lower for keyword in keywords):
@@ -56,7 +59,8 @@ def _prepare_event_data(  # pylint: disable=too-many-arguments,too-many-position
         "start_date_local": start_date + "T00:00:00",
         "category": "WORKOUT",
         "name": name,
-        "description": str(workout_doc) if workout_doc else None,
+        "description": workout_doc.description if workout_doc else None,
+        "workout_doc": workout_doc.to_dict() if workout_doc else None,
         "type": resolved_workout_type,
         "moving_time": moving_time,
         "distance": distance,
