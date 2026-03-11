@@ -186,7 +186,7 @@ async def get_event_by_id(
 
     # Call the Intervals.icu API
     result = await make_intervals_request(
-        url=f"/athlete/{athlete_id_to_use}/event/{event_id}", api_key=api_key
+        url=f"/athlete/{athlete_id_to_use}/events/{event_id}", api_key=api_key
     )
 
     if isinstance(result, dict) and "error" in result:
@@ -294,70 +294,86 @@ async def add_or_update_event(  # pylint: disable=too-many-arguments,too-many-po
     moving_time: int | None = None,
     distance: int | None = None,
 ) -> str:
-    """Post event for an athlete to Intervals.icu this follows the event api from intervals.icu
-    If event_id is provided, the event will be updated instead of created.
+    """Create or update a planned workout event in the Intervals.icu calendar.
 
-    Many arguments are required as this MCP tool function maps directly to the Intervals.icu API parameters.
+    This tool writes to the athlete event API (`POST/PUT /athlete/{athlete_id}/events`).
+    In practice this is how you create a day-specific training plan in Intervals: an
+    event is created with `category="WORKOUT"`, a `type` such as Run/Ride/Swim/Rowing,
+    and an optional nested `workout_doc` that contains the structured steps.
+
+    The event payload written by this MCP is:
+    - `start_date_local`: `<start_date>T00:00:00`
+    - `category`: `WORKOUT`
+    - `name`: event title shown on the calendar
+    - `description`: copied from `workout_doc.description` when present
+    - `workout_doc`: structured workout definition (optional)
+    - `type`: resolved workout type such as Ride, Run, Swim, Walk, Rowing
+    - `moving_time`: planned duration in seconds (optional)
+    - `distance`: planned distance in meters (optional)
+
+    Use this when you want to schedule a workout on a specific day. If `event_id` is
+    provided, the existing calendar event is updated instead of creating a new one.
+    This tool does not currently create workout-library items or plan folders; it writes
+    calendar events.
 
     Args:
         athlete_id: The Intervals.icu athlete ID (optional, will use ATHLETE_ID from .env if not provided)
         api_key: The Intervals.icu API key (optional, will use API_KEY from .env if not provided)
-        event_id: The Intervals.icu event ID (optional, will use event_id from .env if not provided)
-        start_date: Start date in YYYY-MM-DD format (optional, defaults to today)
-        name: Name of the activity
-        workout_doc: steps as a list of Step objects (optional, but necessary to define workout steps)
-        workout_type: Workout type (e.g. Ride, Run, Swim, Walk, Row)
-        moving_time: Total expected moving time of the workout in seconds (optional)
-        distance: Total expected distance of the workout in meters (optional)
+        event_id: Existing Intervals.icu event ID to update instead of creating a new one
+        start_date: Workout date in YYYY-MM-DD format (optional, defaults to today)
+        name: Event name shown in the calendar
+        workout_doc: Structured workout steps (optional, but needed for interval-by-interval plans)
+        workout_type: Workout type (e.g. Ride, Run, Swim, Walk, Row/Rowing)
+        moving_time: Planned moving time in seconds (optional)
+        distance: Planned distance in meters (optional)
 
-    Example:
-        "workout_doc": {
-            "description": "High-intensity workout for increasing VO2 max",
+    Example event intent:
+        start_date="2026-03-12"
+        name="VO2 Max Run"
+        workout_type="Run"
+        moving_time=3600
+        workout_doc={
+            "description": "Warm up, then 5x3 min hard / 2 min easy",
             "steps": [
-                {"power": {"value": "80", "units": "%ftp"}, "duration": "900", "warmup": true},
-                {"reps": 2, "text": "High-intensity intervals", "steps": [
-                    {"power": {"value": "110", "units": "%ftp"}, "distance": "500", "text": "High-intensity"},
-                    {"power": {"value": "80", "units": "%ftp"}, "duration": "90", "text": "Recovery"}
+                {"duration": 900, "warmup": true, "hr": {"value": 75, "units": "%lthr"}},
+                {"reps": 5, "steps": [
+                    {"duration": 180, "hr": {"value": 95, "units": "%lthr"}, "text": "Hard"},
+                    {"duration": 120, "hr": {"value": 70, "units": "%lthr"}, "text": "Easy"}
                 ]},
-                {"power": {"value": "80", "units": "%ftp"}, "duration": "600", "cooldown": true}
-                {"text": ""}, # Add comments or blank lines for readability
+                {"duration": 600, "cooldown": true, "hr": {"value": 70, "units": "%lthr"}}
             ]
         }
 
     Step properties:
         distance: Distance of step in meters
-            {"distance": "5000"}
+            {"distance": 5000}
         duration: Duration of step in seconds
-            {"duration": "1800"}
+            {"duration": 1800}
         power/hr/pace/cadence: Define step intensity
-            Percentage of FTP: {"power": {"value": "80", "units": "%ftp"}}
-            Absolute power: {"power": {"value": "200", "units": "w"}}
-            Heart rate: {"hr": {"value": "75", "units": "%hr"}}
-            Heart rate (LTHR): {"hr": {"value": "85", "units": "%lthr"}}
-            Cadence: {"cadence": {"value": "90", "units": "rpm"}}
-            Pace by ftp: {"pace": {"value": "80", "units": "%pace"}}
-            Pace by zone: {"pace": {"value": "Z2", "units": "pace_zone"}}
-            Zone by power: {"power": {"value": "Z2", "units": "power_zone"}}
-            Zone by heart rate: {"hr": {"value": "Z2", "units": "hr_zone"}}
-        Ranges: Specify ranges for power, heart rate, or cadence:
-            {"power": {"start": "80", "end": "90", "units": "%ftp"}}
-        Ramps: Instead of a range, indicate a gradual change in intensity (useful for ERG workouts):
-            {"ramp": True, "power": {"start": "80", "end": "90", "units": "%ftp"}}
-        Repeats: include the reps property and add nested steps
-            {"reps": 3,
-            "steps": [
-                {"power": {"value": "110", "units": "%ftp"}, "distance": "500", "text": "High-intensity"},
-                {"power": {"value": "80", "units": "%ftp"}, "duration": "90", "text": "Recovery"}
-            ]}
-        Free Ride: Include free to indicate a segment without ERG control, optionally with a suggested power range:
-            {"free": true, "power": {"value": "80", "units": "%ftp"}}
-        Comments and Labels: Add descriptive text to label steps:
+            Percentage of FTP: {"power": {"value": 80, "units": "%ftp"}}
+            Absolute power: {"power": {"value": 200, "units": "w"}}
+            Heart rate: {"hr": {"value": 75, "units": "%hr"}}
+            Heart rate (LTHR): {"hr": {"value": 85, "units": "%lthr"}}
+            Cadence: {"cadence": {"value": 90, "units": "cadence"}}
+            Pace by ftp: {"pace": {"value": 80, "units": "%pace"}}
+            Pace by zone: {"pace": {"value": 2, "units": "pace_zone"}}
+            Zone by power: {"power": {"value": 2, "units": "power_zone"}}
+            Zone by heart rate: {"hr": {"value": 2, "units": "hr_zone"}}
+        Ranges: Specify ranges for power, heart rate, or cadence
+            {"power": {"start": 80, "end": 90, "units": "%ftp"}}
+        Ramps: Indicate a gradual change in intensity
+            {"ramp": true, "power": {"start": 80, "end": 90, "units": "%ftp"}}
+        Repeats: Include the reps property and add nested steps
+            {"reps": 3, "steps": [{...}, {...}]}
+        Free Ride: Segment without ERG control, optionally with a target range
+            {"freeride": true, "power": {"value": 80, "units": "%ftp"}}
+        Comments and Labels: Add descriptive text to label steps
             {"text": "Warmup"}
 
     How to use steps:
-        - Set distance or duration as appropriate for step
-        - Use "reps" with nested steps to define repeat intervals (as in example above)
-        - Define one of "power", "hr" or "pace" to define step intensity
+        - Set distance or duration as appropriate for each step
+        - Use `reps` with nested `steps` to define repeat intervals
+        - Define one of `power`, `hr`, `pace`, or `cadence` to define the target
     """
     athlete_id_to_use, error_msg = resolve_athlete_id(athlete_id, config.athlete_id)
     if error_msg:

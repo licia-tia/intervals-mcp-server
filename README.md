@@ -1,6 +1,6 @@
 # Intervals.icu MCP Server
 
-Model Context Protocol (MCP) server for connecting Claude and ChatGPT with the Intervals.icu API. It provides tools for authentication and data retrieval for activities, events, and wellness data.
+Model Context Protocol (MCP) server for connecting Claude and ChatGPT with the Intervals.icu API. It currently focuses on activity retrieval, event management, and wellness data rather than covering the full Intervals.icu API surface.
 
 If you find the Model Context Protocol (MCP) server useful, please consider supporting its continued development with a donation.
 
@@ -161,12 +161,20 @@ If you observe the following error messages when you open Claude Desktop, includ
 
 Once the server is running and Claude Desktop is configured, you can use the following tools to ask questions about your past and future activities, events, and wellness data.
 
+Current MCP tools:
+
 - `get_activities`: Retrieve a list of activities
 - `get_activity_details`: Get detailed information for a specific activity
 - `get_activity_intervals`: Get detailed interval data for a specific activity
-- `get_wellness_data`: Fetch wellness data
-- `get_events`: Retrieve upcoming events (workouts, races, etc.)
+- `get_activity_streams`: Get time-series stream data for a specific activity
+- `get_events`: Retrieve events in a date range
 - `get_event_by_id`: Get detailed information for a specific event
+- `add_or_update_event`: Create or update a calendar workout event (day-specific training plan), including structured `workout_doc`
+- `delete_event`: Delete a specific event
+- `delete_events_by_date_range`: Delete events in a date range
+- `get_wellness_data`: Fetch wellness data
+
+This list reflects the current MCP implementation, not the entire Intervals.icu API.
 
 ## Usage with ChatGPT
 

@@ -112,24 +112,30 @@ def test_get_events(monkeypatch):
 
 def test_get_event_by_id(monkeypatch):
     """
-    Test get_event_by_id returns a formatted string with event details for a given event ID.
+    Test get_event_by_id returns a formatted string and calls the plural /events/{id} endpoint.
     """
     event = {
         "id": "e1",
-        "date": "2024-01-01",
+        "start_date_local": "2024-01-01T00:00:00",
+        "end_date_local": "2024-01-02T00:00:00",
+        "category": "WORKOUT",
+        "type": "Run",
         "name": "Test Event",
         "description": "desc",
-        "race": True,
     }
+    captured = {}
 
-    async def fake_request(*_args, **_kwargs):
+    async def fake_request(*_args, **kwargs):
+        captured.update(kwargs)
         return event
 
     # Patch in both api.client and tools modules to ensure it works
     monkeypatch.setattr("intervals_mcp_server.api.client.make_intervals_request", fake_request)
     monkeypatch.setattr("intervals_mcp_server.tools.events.make_intervals_request", fake_request)
     result = asyncio.run(get_event_by_id("e1", athlete_id="1"))
+    assert captured["url"] == "/athlete/1/events/e1"
     assert "Event Details:" in result
+    assert "Type: Run" in result
     assert "Test Event" in result
 
 

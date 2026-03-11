@@ -320,12 +320,28 @@ def format_wellness_entry(entries: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _resolve_event_type(event: dict[str, Any]) -> str:
+    """Resolve the most useful display type for an event."""
+    if event.get("type"):
+        return str(event["type"])
+    if event.get("category") == "WORKOUT":
+        return "Workout"
+    if event.get("category") == "RACE" or event.get("race"):
+        return "Race"
+    if event.get("workout"):
+        workout = event["workout"]
+        if isinstance(workout, dict) and workout.get("sport"):
+            return str(workout["sport"])
+        return "Workout"
+    if event.get("category"):
+        return str(event["category"]).title()
+    return "Other"
+
+
 def format_event_summary(event: dict[str, Any]) -> str:
     """Format a basic event summary into a readable string."""
-
-    # Update to check for "date" if "start_date_local" is not provided
     event_date = event.get("start_date_local", event.get("date", "Unknown"))
-    event_type = "Workout" if event.get("workout") else "Race" if event.get("race") else "Other"
+    event_type = _resolve_event_type(event)
     event_name = event.get("name", "Unnamed")
     event_id = event.get("id", "N/A")
     event_desc = event.get("description", "No description")
@@ -339,46 +355,83 @@ Description: {event_desc}"""
 
 def format_event_details(event: dict[str, Any]) -> str:
     """Format detailed event information into a readable string."""
+    lines = [
+        "Event Details:",
+        "",
+        f"ID: {event.get('id', 'N/A')}",
+        f"Start Date: {event.get('start_date_local', event.get('date', 'Unknown'))}",
+    ]
 
-    event_details = f"""Event Details:
+    if event.get("end_date_local") is not None:
+        lines.append(f"End Date: {event.get('end_date_local')}")
 
-ID: {event.get("id", "N/A")}
-Date: {event.get("date", "Unknown")}
-Name: {event.get("name", "Unnamed")}
-Description: {event.get("description", "No description")}"""
+    lines.extend(
+        [
+            f"Category: {event.get('category', 'N/A')}",
+            f"Type: {_resolve_event_type(event)}",
+            f"Name: {event.get('name', 'Unnamed')}",
+            f"Description: {event.get('description', 'No description')}",
+        ]
+    )
 
-    # Check if it's a workout-based event
+    if event.get("moving_time") is not None:
+        lines.append(f"Moving Time: {event.get('moving_time')} seconds")
+    if event.get("distance") is not None:
+        lines.append(f"Distance: {event.get('distance')} meters")
+
+    training_metrics = []
+    for key, label in [
+        ("icu_training_load", "Training Load"),
+        ("icu_intensity", "Intensity"),
+        ("icu_atl", "Fatigue (ATL)"),
+        ("icu_ctl", "Fitness (CTL)"),
+        ("icu_ftp", "FTP"),
+    ]:
+        if event.get(key) is not None:
+            training_metrics.append(f"{label}: {event.get(key)}")
+
+    if training_metrics:
+        lines.extend(["", "Training Metrics:", *training_metrics])
+
+    workout_doc = event.get("workout_doc")
+    if isinstance(workout_doc, dict):
+        lines.extend(["", "Workout Structure:"])
+        if workout_doc.get("description"):
+            lines.append(f"Description: {workout_doc.get('description')}")
+        if isinstance(workout_doc.get("steps"), list):
+            lines.append(f"Steps: {len(workout_doc['steps'])}")
+        if workout_doc.get("target"):
+            lines.append(f"Target: {workout_doc.get('target')}")
+
     if "workout" in event and event["workout"]:
         workout = event["workout"]
-        event_details += f"""
-
-Workout Information:
-Workout ID: {workout.get("id", "N/A")}
-Sport: {workout.get("sport", "Unknown")}
-Duration: {workout.get("duration", 0)} seconds
-TSS: {workout.get("tss", "N/A")}"""
-
-        # Include interval count if available
+        lines.extend(
+            [
+                "",
+                "Workout Information:",
+                f"Workout ID: {workout.get('id', 'N/A')}",
+                f"Sport: {workout.get('sport', 'Unknown')}",
+                f"Duration: {workout.get('duration', 0)} seconds",
+                f"TSS: {workout.get('tss', 'N/A')}",
+            ]
+        )
         if "intervals" in workout and isinstance(workout["intervals"], list):
-            event_details += f"""
-Intervals: {len(workout["intervals"])}"""
+            lines.append(f"Intervals: {len(workout['intervals'])}")
 
-    # Check if it's a race
     if event.get("race"):
-        event_details += f"""
+        lines.extend(
+            [
+                "",
+                "Race Information:",
+                f"Priority: {event.get('priority', 'N/A')}",
+                f"Result: {event.get('result', 'N/A')}",
+            ]
+        )
 
-Race Information:
-Priority: {event.get("priority", "N/A")}
-Result: {event.get("result", "N/A")}"""
+    if "calendar" in event and isinstance(event["calendar"], dict):
+        lines.extend(["", f"Calendar: {event['calendar'].get('name', 'N/A')}"])
 
-    # Include calendar information
-    if "calendar" in event:
-        cal = event["calendar"]
-        event_details += f"""
-
-Calendar: {cal.get("name", "N/A")}"""
-
-    return event_details
+    return "\n".join(lines)
 
 
 def format_intervals(intervals_data: dict[str, Any]) -> str:

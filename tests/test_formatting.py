@@ -65,29 +65,41 @@ def test_format_wellness_entry():
 
 def test_format_event_summary():
     """
-    Test that format_event_summary returns a string containing the event date and type.
+    Test that format_event_summary prefers the real event type when present.
     """
     event = {
         "start_date_local": "2024-01-01",
         "id": "e1",
         "name": "Event1",
         "description": "desc",
-        "race": True,
+        "category": "WORKOUT",
+        "type": "Run",
     }
     summary = format_event_summary(event)
     assert "Date: 2024-01-01" in summary
-    assert "Type: Race" in summary
+    assert "Type: Run" in summary
 
 
 def test_format_event_details():
     """
-    Test that format_event_details returns a string containing event and workout details.
+    Test that format_event_details returns a string containing modern event fields and workout structure.
     """
     event = {
         "id": "e1",
-        "date": "2024-01-01",
+        "start_date_local": "2024-01-01T00:00:00",
+        "end_date_local": "2024-01-02T00:00:00",
+        "category": "WORKOUT",
+        "type": "Ride",
         "name": "Event1",
         "description": "desc",
+        "moving_time": 3600,
+        "distance": 20000,
+        "icu_training_load": 42,
+        "workout_doc": {
+            "description": "Tempo session",
+            "steps": [{"duration": 600}, {"duration": 300}],
+            "target": "POWER",
+        },
         "workout": {
             "id": "w1",
             "sport": "Ride",
@@ -95,13 +107,15 @@ def test_format_event_details():
             "tss": 50,
             "intervals": [1, 2],
         },
-        "race": True,
-        "priority": "A",
-        "result": "1st",
         "calendar": {"name": "Main"},
     }
     details = format_event_details(event)
     assert "Event Details:" in details
+    assert "Start Date: 2024-01-01T00:00:00" in details
+    assert "Type: Ride" in details
+    assert "Training Metrics:" in details
+    assert "Workout Structure:" in details
+    assert "Steps: 2" in details
     assert "Workout Information:" in details
 
 
